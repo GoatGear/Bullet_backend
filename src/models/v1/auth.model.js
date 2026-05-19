@@ -3,6 +3,9 @@ import { ErrorInstance } from '../../config/error.config.js'
 import { hashUtils } from '../../utils/hash.js'
 import { jwtUtils } from '../../utils/jwt.js'
 import broadcastModel from './broadcast.model.js'
+import { sendEmail } from '../../services/sendEmail.js'
+import { getWelcomeUserHtml } from '../../services/html/welcomeUser.html.js'
+import { getNewUserAdminHtml } from '../../services/html/newUserAdmin.html.js'
 
 function makeToken(user) {
     return jwtUtils.generateToken({ id: user._id, email: user.email, role: user.role })
@@ -32,8 +35,22 @@ const createUser = async (data, metadata = {}) => {
 
     const saved = await newUser.save()
 
-    // Fire-and-forget — don't block registration if it fails
+    // Fire-and-forget — don't block registration if any of these fail
     broadcastModel.createWelcome(saved._id).catch(console.error)
+
+    sendEmail({
+        to:      saved.email,
+        subject: 'Bienvenido a Bullet·Journal',
+        html:    getWelcomeUserHtml({ name: saved.name, email: saved.email }),
+    }).catch(console.error)
+
+    if (process.env.ADMIN_EMAIL) {
+        sendEmail({
+            to:      process.env.ADMIN_EMAIL,
+            subject: `Nuevo usuario: ${saved.name}`,
+            html:    getNewUserAdminHtml({ name: saved.name, email: saved.email, ip: metadata.ip, userAgent: metadata.userAgent }),
+        }).catch(console.error)
+    }
 
     return {
         id:                   saved._id,
