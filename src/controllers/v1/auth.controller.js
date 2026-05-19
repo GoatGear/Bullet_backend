@@ -1,5 +1,6 @@
 import { asyncMiddleware } from '../../middlewares/async.middleware.js'
 import authModel from '../../models/v1/auth.model.js'
+import { jwtUtils } from '../../utils/jwt.js'
 
 const register = asyncMiddleware(async (req, res) => {
     const metadata = {
@@ -43,6 +44,12 @@ const toggleNotifications = asyncMiddleware(async (req, res) => {
     res.json(await authModel.toggleNotifications(req.params.id, req.body.enabled))
 })
 
-const authController = { register, login, getMe, updateMe, getAllUsers, updateUser, toggleSuspend, toggleNotifications, deleteUser }
+const refresh = asyncMiddleware(async (req, res) => {
+  const user = await authModel.getMe(req.user.id)
+  const access_token = jwtUtils.generateToken({ id: user.id, email: user.email, role: user.role })
+  res.json({ access_token })
+})
+
+const authController = { register, login, getMe, updateMe, refresh, getAllUsers, updateUser, toggleSuspend, toggleNotifications, deleteUser }
 
 export default authController

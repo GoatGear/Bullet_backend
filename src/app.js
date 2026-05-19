@@ -33,9 +33,11 @@ const authLimiter = rateLimit({
     message: { message: 'Demasiados intentos. Espera 15 minutos antes de reintentar.' },
 })
 
-app.use('/v1', apiLimiter)
-app.use('/v1/auth/login',    authLimiter)
-app.use('/v1/auth/register', authLimiter)
+if (process.env.NODE_ENV !== 'development') {
+  app.use('/v1', apiLimiter)
+  app.use('/v1/auth/login',    authLimiter)
+  app.use('/v1/auth/register', authLimiter)
+}
 
 app.use(morgan('short'))
 app.use(express.json({ limit: '2mb' }))
