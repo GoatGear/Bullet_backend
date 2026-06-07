@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import User from '../../schemas/user.schema.js'
 import { ErrorInstance } from '../../config/error.config.js'
 import { hashUtils } from '../../utils/hash.js'
@@ -6,6 +7,7 @@ import broadcastModel from './broadcast.model.js'
 import { sendEmail } from '../../services/sendEmail.js'
 import { getWelcomeUserHtml } from '../../services/html/welcomeUser.html.js'
 import { getNewUserAdminHtml } from '../../services/html/newUserAdmin.html.js'
+import { getResetPasswordHtml } from '../../services/html/resetPassword.html.js'
 
 function makeToken(user) {
     return jwtUtils.generateToken({ id: user._id, email: user.email, role: user.role })
@@ -104,6 +106,46 @@ const updateMe = async (id, data) => {
     return updated
 }
 
+const forgotPassword = async (email) => {
+    const user = await User.findOne({ email: email.toLowerCase().trim() })
+    // Always respond with success to avoid leaking which emails are registered
+    if (!user || user.suspended) return
+
+    const token  = crypto.randomBytes(32).toString('hex')
+    const expiry = new Date(Date.now() + 60 * 60 * 1000) // 1 hour
+
+    user.resetToken       = token
+    user.resetTokenExpiry = expiry
+    await user.save()
+
+    const frontUrl  = process.env.FRONT_URL ?? 'http://localhost:5173'
+    const resetUrl  = `${frontUrl}/reset-password?token=${token}`
+
+    sendEmail({
+        to:      user.email,
+        subject: 'Restablecer contraseña — Bullet·Journal',
+        html:    getResetPasswordHtml({ name: user.name, resetUrl }),
+    }).catch(console.error)
+}
+
+const resetPassword = async (token, newPassword) => {
+    if (!token || !newPassword) {
+        throw new ErrorInstance('Token y nueva contraseña son obligatorios', 400)
+    }
+
+    const user = await User.findOne({
+        resetToken:       token,
+        resetTokenExpiry: { $gt: new Date() },
+    })
+
+    if (!user) throw new ErrorInstance('El enlace no es válido o ha expirado', 400)
+
+    user.password         = await hashUtils.hash(newPassword)
+    user.resetToken       = null
+    user.resetTokenExpiry = null
+    await user.save()
+}
+
 // ── Admin methods ──────────────────────────────────────────────
 
 function normUser(doc) {
@@ -160,7 +202,7 @@ const deleteUser = async (id) => {
 }
 
 const authModel = {
-    createUser, login, getMe, updateMe,
+    createUser, login, getMe, updateMe, forgotPassword, resetPassword,
     getAllUsers, updateUser, toggleSuspend, toggleNotifications, deleteUser,
 }
 

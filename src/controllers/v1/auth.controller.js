@@ -50,6 +50,17 @@ const refresh = asyncMiddleware(async (req, res) => {
   res.json({ access_token })
 })
 
-const authController = { register, login, getMe, updateMe, refresh, getAllUsers, updateUser, toggleSuspend, toggleNotifications, deleteUser }
+const forgotPassword = asyncMiddleware(async (req, res) => {
+    await authModel.forgotPassword(req.body.email)
+    // Always 200 — don't reveal if the email exists
+    res.json({ message: 'Si el correo está registrado recibirás un enlace en breve.' })
+})
+
+const resetPassword = asyncMiddleware(async (req, res) => {
+    await authModel.resetPassword(req.body.token, req.body.password)
+    res.json({ message: 'Contraseña actualizada correctamente.' })
+})
+
+const authController = { register, login, getMe, updateMe, refresh, forgotPassword, resetPassword, getAllUsers, updateUser, toggleSuspend, toggleNotifications, deleteUser }
 
 export default authController
